@@ -125,18 +125,60 @@ header{display:flex;align-items:center;justify-content:space-between;margin-bott
   </div>
 </div>
 
+<!-- SCRIPTS DO FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
 <script>
+// CONFIGURAÇÃO DO FIREBASE (NOVA CONTA)
+const firebaseConfig = {
+  apiKey: "AIzaSyAYDAcr6-8cf8_PQCIDXaTVeRrwoeKIJqg",
+  authDomain: "sistemas-fag-finan.firebaseapp.com",
+  projectId: "sistemas-fag-finan",
+  storageBucket: "sistemas-fag-finan.firebasestorage.app",
+  messagingSenderId: "452691826801",
+  appId: "1:452691826801:web:ee7893554e15c4e526a3d0"
+};
+
+firebase.initializeApp(firebaseConfig);
+const dbFirestore = firebase.firestore();
+
 const KEY='meu_financeiro_v1';
 const now=new Date();
-const state=JSON.parse(localStorage.getItem(KEY)||'null')||{
+
+let state = JSON.parse(localStorage.getItem(KEY)||'null') || {
   groups:[
     {id:'g1',name:'Alimentação'},{id:'g2',name:'Estudos'},{id:'g3',name:'Moradia'},
     {id:'g4',name:'Transporte'},{id:'g5',name:'Lazer'},{id:'g6',name:'Salário'}
   ],
   transactions:[]
 };
+
 let selectedMonth=ym(now);
-function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+
+// ESCUTA EM TEMPO REAL NO FIREBASE
+dbFirestore.collection('financeiro').doc('dados_gerais').onSnapshot((doc) => {
+  if (doc.exists) {
+    const data = doc.data() || {};
+    state.groups = data.groups || state.groups;
+    state.transactions = data.transactions || [];
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } else {
+    save();
+  }
+  renderMonth();
+}, (error) => {
+  console.error("Erro na sincronização Firebase:", error);
+});
+
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(state));
+  dbFirestore.collection('financeiro').doc('dados_gerais').set({
+    groups: state.groups,
+    transactions: state.transactions
+  });
+}
+
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function ym(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 function monthDate(key){const [y,m]=key.split('-').map(Number);return new Date(y,m-1,1)}
@@ -237,7 +279,6 @@ function createTransaction(formData){
       recurring:!!recurring, recurringParent:recurring?parentId:null
     });
   }
-  // Recorrente sem limite: materializa os próximos 60 meses para permitir visualização.
   if(recurring && duration==='forever'){
     for(let i=count;i<60;i++){
       const month=addMonths(baseMonth,i);
@@ -266,17 +307,12 @@ document.getElementById('txForm').addEventListener('submit',e=>{
   if(edit){
     const current=state.transactions.find(t=>t.id===edit);
     if(current){
-      // Edição de uma parcela/recorrência altera a série inteira.
       const parentId=current.parentId||current.id;
       const series=state.transactions.filter(t=>(t.parentId||t.id)===parentId);
       const first=series.slice().sort((a,b)=>a.date.localeCompare(b.date))[0];
 
-      // Mantém a data inicial original da série para não deslocar
-      // todas as parcelas quando o usuário editar uma parcela posterior.
       data.date=first ? first.date : data.date;
 
-      // Remove todas as ocorrências antigas e recria a série com as
-      // novas configurações (ex.: de 4x para 2x).
       state.transactions=state.transactions.filter(t=>(t.parentId||t.id)!==parentId);
       state.transactions.push(...createTransaction(data));
     }
