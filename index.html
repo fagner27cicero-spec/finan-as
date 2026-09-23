@@ -71,12 +71,11 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 
 /* GROUPS */
 .groups{display:flex;flex-direction:column;gap:14px}
-.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow);cursor:grab;touch-action:pan-y;transition:transform .15s ease, box-shadow .15s ease}
-.group-card:active{cursor:grabbing}
-.group-card.dragging{opacity:.5;transform:scale(.98);box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow);touch-action:pan-y;transition:transform .15s ease, box-shadow .15s ease}
+.group-card.dragging{opacity:.6;transform:scale(.98);box-shadow:0 20px 40px rgba(0,0,0,.25);border:2px dashed var(--primary)}
 .group-head{display:flex;align-items:center;justify-content:space-between;user-select:none}
 .group-title-box{display:flex;align-items:center;gap:8px}
-.drag-handle{color:var(--muted);font-size:14px;cursor:grab;opacity:.6}
+.drag-handle{color:var(--muted);font-size:14px;opacity:.6}
 .group-name{font-weight:800;font-size:15px}
 .group-right-box{display:flex;align-items:center;gap:10px}
 .group-collapsed-total{font-size:14px;font-weight:800;display:none}
@@ -387,7 +386,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 
 function openMonth(key){selectedMonth=key;renderMonth()}
 
-/* MINIMIZAR / MAXIMIZAR GRUPO COM SALDO EM CABEÇALHO */
+/* MINIMIZAR / MAXIMIZAR GRUPO */
 function toggleGroupCollapse(groupId, e){
   if(e && e.target.closest('.mini, button')) return;
   const cardEl = document.getElementById(`g-card-${groupId}`);
@@ -400,33 +399,7 @@ function toggleGroupCollapse(groupId, e){
   }
 }
 
-/* DRAG AND DROP / TOUCH ORDENAÇÃO DE GRUPOS */
-let dragSrcIdx = null;
-
-function handleDragStart(e, idx){
-  dragSrcIdx = idx;
-  e.dataTransfer.effectAllowed = 'move';
-  e.target.classList.add('dragging');
-}
-
-function handleDragOver(e){
-  if(e.preventDefault) e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  return false;
-}
-
-function handleDrop(e, targetIdx){
-  if(e.stopPropagation) e.stopPropagation();
-  if(dragSrcIdx !== null && dragSrcIdx !== targetIdx){
-    reorderGroups(dragSrcIdx, targetIdx);
-  }
-  return false;
-}
-
-function handleDragEnd(e){
-  document.querySelectorAll('.group-card').forEach(c=>c.classList.remove('dragging'));
-}
-
+/* REORDENAÇÃO DE GRUPOS - APENAS QUANDO MINIMIZADO E COM LONG-PRESS DE 2 SEGUNDOS */
 function reorderGroups(fromIdx, toIdx){
   const tx=state.transactions.filter(t=>t.month===selectedMonth);
   const used=state.groups.filter(g=>tx.some(t=>t.groupId===g.id));
@@ -448,45 +421,85 @@ function reorderGroups(fromIdx, toIdx){
   }
 }
 
-let touchCard = null, touchStartY = 0, touchStartIdx = null;
+let longPressTimer = null;
+let isLongPressActive = false;
+let activeDragIdx = null;
+let touchStartY = 0;
 
 function attachTouchDrag(cardEl, idx){
+  const cancelTimer = () => {
+    if(longPressTimer){
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
   cardEl.addEventListener('touchstart', (e)=>{
     if(e.target.closest('.mini, button, select, input, .group-toggle')) return;
-    touchCard = cardEl;
+    
+    // REGRA 1: SÓ PERMITE REORDENAR SE O GRUPO ESTIVER MINIMIZADO
+    if(!cardEl.classList.contains('is-collapsed')) return;
+
+    cancelTimer();
     touchStartY = e.touches[0].clientY;
-    touchStartIdx = idx;
+    
+    // REGRA 2: PRESSIONAR E SEGURAR POR 2 SEGUNDOS (2000ms)
+    longPressTimer = setTimeout(() => {
+      isLongPressActive = true;
+      activeDragIdx = idx;
+      cardEl.classList.add('dragging');
+      if(navigator.vibrate) navigator.vibrate(50); // Feedback tátil ao ativar
+      toast('Modo de ordenação ativado: arraste para mover');
+    }, 2000);
   }, {passive:true});
 
   cardEl.addEventListener('touchmove', (e)=>{
-    if(!touchCard) return;
-    const deltaY = e.touches[0].clientY - touchStartY;
-    if(Math.abs(deltaY) > 12){
-      touchCard.classList.add('dragging');
-      touchCard.style.transform = `translateY(${deltaY}px)`;
+    const currentY = e.touches[0].clientY;
+    
+    // Se o usuário mover o dedo antes dos 2 segundos, cancela o temporizador para permitir a rolagem da página
+    if(!isLongPressActive){
+      if(Math.abs(currentY - touchStartY) > 10){
+        cancelTimer();
+      }
+      return;
     }
+
+    // Se o modo de ordenação ativou, move o card
+    const deltaY = currentY - touchStartY;
+    cardEl.style.transform = `translateY(${deltaY}px)`;
   }, {passive:true});
 
   cardEl.addEventListener('touchend', (e)=>{
-    if(!touchCard) return;
-    const endY = e.changedTouches[0].clientY;
-    touchCard.style.transform = '';
-    touchCard.classList.remove('dragging');
+    cancelTimer();
+    
+    if(isLongPressActive && activeDragIdx !== null){
+      const endY = e.changedTouches[0].clientY;
+      cardEl.style.transform = '';
+      cardEl.classList.remove('dragging');
 
-    const cards = Array.from(document.querySelectorAll('.group-card'));
-    const target = cards.find(c=>{
-      const r = c.getBoundingClientRect();
-      return endY >= r.top && endY <= r.bottom;
-    });
+      const cards = Array.from(document.querySelectorAll('.group-card'));
+      const target = cards.find(c => {
+        const r = c.getBoundingClientRect();
+        return endY >= r.top && endY <= r.bottom;
+      });
 
-    if(target){
-      const targetIdx = parseInt(target.dataset.idx);
-      if(!isNaN(targetIdx) && targetIdx !== touchStartIdx){
-        reorderGroups(touchStartIdx, targetIdx);
+      if(target){
+        const targetIdx = parseInt(target.dataset.idx);
+        if(!isNaN(targetIdx) && targetIdx !== activeDragIdx){
+          reorderGroups(activeDragIdx, targetIdx);
+        }
       }
+      
+      // Bloqueia o clique do evento toggle após soltar
+      e.preventDefault();
+      e.stopPropagation();
     }
-    touchCard = null;
+
+    isLongPressActive = false;
+    activeDragIdx = null;
   });
+
+  cardEl.addEventListener('touchcancel', cancelTimer);
 }
 
 function renderMonth(){
@@ -513,14 +526,10 @@ function renderMonth(){
   groups.innerHTML=used.map((g, idx)=>{
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
-    return `<div class="group-card" id="g-card-${g.id}" data-idx="${idx}" draggable="true" 
-      ondragstart="handleDragStart(event, ${idx})" 
-      ondragover="handleDragOver(event)" 
-      ondrop="handleDrop(event, ${idx})" 
-      ondragend="handleDragEnd(event)">
+    return `<div class="group-card" id="g-card-${g.id}" data-idx="${idx}">
       <div class="group-head" onclick="toggleGroupCollapse('${g.id}', event)">
         <div class="group-title-box">
-          <span class="drag-handle" title="Arraste para reordenar">⣿</span>
+          <span class="drag-handle" title="Segure por 2s para ordenar">⣿</span>
           <div class="group-name">${esc(g.name)}</div>
         </div>
         <div class="group-right-box">
