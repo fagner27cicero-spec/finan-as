@@ -78,6 +78,11 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 .group-title-box{display:flex;align-items:center;gap:8px}
 .drag-handle{color:var(--muted);font-size:14px;cursor:grab;opacity:.6}
 .group-name{font-weight:800;font-size:15px}
+.group-right-box{display:flex;align-items:center;gap:10px}
+.group-collapsed-total{font-size:14px;font-weight:800;display:none}
+.group-card.is-collapsed .group-collapsed-total{display:block}
+.group-collapsed-total.income{color:var(--income)}
+.group-collapsed-total.expense{color:var(--expense)}
 .group-toggle{width:28px;height:28px;border-radius:50%;background:var(--surface-2);font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s ease;color:var(--muted)}
 .group-toggle.collapsed{transform:rotate(-90deg)}
 .group-body{overflow:hidden;max-height:2000px;transition:max-height .25s ease-out, opacity .2s ease;opacity:1}
@@ -382,12 +387,14 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 
 function openMonth(key){selectedMonth=key;renderMonth()}
 
-/* MINIMIZAR / MAXIMIZAR GRUPO */
+/* MINIMIZAR / MAXIMIZAR GRUPO COM SALDO EM CABEÇALHO */
 function toggleGroupCollapse(groupId, e){
   if(e && e.target.closest('.mini, button')) return;
+  const cardEl = document.getElementById(`g-card-${groupId}`);
   const bodyEl = document.getElementById(`g-body-${groupId}`);
   const toggleEl = document.getElementById(`g-toggle-${groupId}`);
-  if(bodyEl && toggleEl){
+  if(cardEl && bodyEl && toggleEl){
+    cardEl.classList.toggle('is-collapsed');
     bodyEl.classList.toggle('collapsed');
     toggleEl.classList.toggle('collapsed');
   }
@@ -441,7 +448,6 @@ function reorderGroups(fromIdx, toIdx){
   }
 }
 
-/* Touch Drag para Smartphones */
 let touchCard = null, touchStartY = 0, touchStartIdx = null;
 
 function attachTouchDrag(cardEl, idx){
@@ -507,7 +513,7 @@ function renderMonth(){
   groups.innerHTML=used.map((g, idx)=>{
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
-    return `<div class="group-card" data-idx="${idx}" draggable="true" 
+    return `<div class="group-card" id="g-card-${g.id}" data-idx="${idx}" draggable="true" 
       ondragstart="handleDragStart(event, ${idx})" 
       ondragover="handleDragOver(event)" 
       ondrop="handleDrop(event, ${idx})" 
@@ -517,7 +523,10 @@ function renderMonth(){
           <span class="drag-handle" title="Arraste para reordenar">⣿</span>
           <div class="group-name">${esc(g.name)}</div>
         </div>
-        <span class="group-toggle" id="g-toggle-${g.id}">▼</span>
+        <div class="group-right-box">
+          <div class="group-collapsed-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
+          <span class="group-toggle" id="g-toggle-${g.id}">▼</span>
+        </div>
       </div>
       <div class="group-body" id="g-body-${g.id}">
         <div class="group-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
@@ -532,7 +541,6 @@ function renderMonth(){
     </div>`;
   }).join('');
 
-  // Ativa suporte ao toque em smartphones
   document.querySelectorAll('.group-card').forEach((card, i) => attachTouchDrag(card, i));
 }
 
