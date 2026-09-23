@@ -125,10 +125,11 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 .csv-list-item{display:flex;flex-direction:column;gap:8px;padding:13px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)}
 .csv-row-head{display:flex;justify-content:space-between;font-weight:700;font-size:14px}
 .csv-row-inputs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.csv-row-inputs select,.csv-row-inputs input{font-size:12.5px;padding:8px;border-radius:9px;border:1px solid var(--border);background:var(--bg)}
+.csv-row-inputs select,.csv-row-inputs input{font-size:12.5px;padding:8px;border-radius:99px;border:1px solid var(--border);background:var(--bg)}
 
 /* GROUP LIST (settings modal) */
 .grouplist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-weight:600;font-size:14px}
+.grouplist-actions{display:flex;gap:6px}
 
 /* TOAST + CONFIRM */
 #toasts{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;width:100%;max-width:360px;padding:0 16px}
@@ -529,6 +530,19 @@ function deleteTx(id){
 }
 
 /* ===== GRUPOS ===== */
+function editGroup(id){
+  const g = state.groups.find(x=>x.id===id);
+  if(!g) return;
+  const newName = prompt('Novo nome para o grupo:', g.name);
+  if(newName && newName.trim() !== ''){
+    g.name = newName.trim();
+    save();
+    renderMonth();
+    renderGroupList();
+    toast('Grupo renomeado');
+  }
+}
+
 function deleteGroup(id){
   if(state.transactions.some(t=>t.groupId===id)){toast('Este grupo possui transações. Exclua ou mova as transações antes.','err');return}
   askConfirm('Excluir grupo?','Essa ação não poderá ser desfeita.',()=>{
@@ -536,7 +550,13 @@ function deleteGroup(id){
   });
 }
 function renderGroupList(){
-  document.getElementById('groupList').innerHTML=state.groups.map(g=>`<div class="grouplist-row"><span>${esc(g.name)}</span><button class="mini" onclick="deleteGroup('${g.id}')">Excluir</button></div>`).join('');
+  document.getElementById('groupList').innerHTML=state.groups.map(g=>`<div class="grouplist-row">
+    <span>${esc(g.name)}</span>
+    <div class="grouplist-actions">
+      <button class="mini" onclick="editGroup('${g.id}')">Renomear</button>
+      <button class="mini" onclick="deleteGroup('${g.id}')">Excluir</button>
+    </div>
+  </div>`).join('');
 }
 document.getElementById('groupForm').addEventListener('submit',e=>{
   e.preventDefault();const n=document.getElementById('newGroup').value.trim();if(!n)return;
