@@ -2,19 +2,127 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Meu Financeiro</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#18212f;--muted:#718096;--primary:#ff7b00;
   --primary2:#ff9d3d;--border:#e7ebf1;--income:#159957;--expense:#dc3545;--shadow:0 10px 30px rgba(20,30,50,.08);
 }
-*{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
 button,input,select{font:inherit} button{cursor:pointer;border:0}
+
+/* TELA DE LOGIN MOBILE-FIRST */
+#loginScreen {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #101726 0%, #1a233a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+
+.login-card-mobile {
+  background: #ffffff;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 28px;
+  padding: 32px 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.login-icon-box {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  color: white;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto 16px;
+  box-shadow: 0 8px 20px rgba(255, 123, 0, 0.3);
+}
+
+.login-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  color: var(--text);
+}
+.login-title span { color: var(--primary); }
+
+.login-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px 0;
+}
+
+.mobile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.mobile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mobile-field label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mobile-field input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  font-size: 15px;
+  background: #f8fafc;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.mobile-field input:focus {
+  border-color: var(--primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(255, 123, 0, 0.12);
+}
+
+.btn-mobile-login {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--primary), var(--primary2));
+  color: white;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 800;
+  margin-top: 8px;
+  box-shadow: 0 10px 20px rgba(255, 123, 0, 0.25);
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.btn-mobile-login:active {
+  transform: scale(0.98);
+}
+
+/* APP PRINCIPAL */
 .app{max-width:1180px;margin:auto;padding:24px}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
 .brand{font-size:24px;font-weight:800}.brand span{color:var(--primary)}
-.iconbtn{width:44px;height:44px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-size:22px}
+.header-right-tools{display:flex;align-items:center;gap:10px}
+.iconbtn{width:44px;height:44px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-size:20px;display:flex;align-items:center;justify-content:center}
 .months{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 16px}
 .month-card{min-width:150px;padding:18px;border-radius:18px;background:var(--card);border:1px solid var(--border);text-align:left}
 .month-card.current{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;border:0;box-shadow:var(--shadow)}
@@ -34,7 +142,7 @@ header{display:flex;align-items:center;justify-content:space-between;margin-bott
 .group-head{display:flex;align-items:center;justify-content:space-between}.group-name{font-weight:800}
 .group-total{font-size:20px;font-weight:800;margin:12px 0}.tx{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
 .tx small{display:block;color:var(--muted);margin-top:3px}.tx-actions{display:flex;gap:4px}.mini{background:transparent;color:var(--muted);font-size:14px}
-.modal{position:fixed;inset:0;background:rgba(10,18,30,.5);display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}
+.modal{position:fixed;inset:0;background:rgba(10,18,30,.5);display:flex;align-items:center;justify-content:center;padding:18px;z-index:100}
 .modal-box{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--card);border-radius:24px;padding:24px}
 .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.modal-head h2{margin:0}
 .close{background:transparent;font-size:24px}
@@ -47,10 +155,37 @@ header{display:flex;align-items:center;justify-content:space-between;margin-bott
 </style>
 </head>
 <body>
+
+<!-- TELA DE LOGIN EXCLUSIVA PARA SMARTPHONE -->
+<div id="loginScreen">
+  <div class="login-card-mobile">
+    <div class="login-icon-box">💰</div>
+    <h1 class="login-title">Meu <span>Financeiro</span></h1>
+    <p class="login-subtitle">Gestão simples e rápida no seu celular</p>
+
+    <div class="mobile-form">
+      <div class="mobile-field">
+        <label>Usuário</label>
+        <input type="text" id="loginUser" placeholder="Digite seu usuário" value="fagner" autocomplete="off">
+      </div>
+
+      <div class="mobile-field">
+        <label>Senha</label>
+        <input type="password" id="loginPass" placeholder="Digite sua senha" onkeypress="if(event.key==='Enter')handleLogin()">
+      </div>
+
+      <button class="btn-mobile-login" onclick="handleLogin()">Acessar Painel ➔</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <header>
     <div class="brand">Meu <span>Financeiro</span></div>
-    <button class="iconbtn" id="manageGroups" title="Gerenciar grupos">⚙</button>
+    <div class="header-right-tools">
+      <button class="iconbtn" id="manageGroups" title="Gerenciar grupos">⚙</button>
+      <button class="iconbtn" onclick="handleLogout()" title="Sair do sistema" style="color:var(--expense)">🔒</button>
+    </div>
   </header>
 
   <section id="home" class="hidden"></section>
@@ -143,10 +278,39 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const dbFirestore = firebase.firestore();
 
-const KEY='meu_financeiro_v1';
-const now=new Date();
+const KEY_AUTH = 'meu_financeiro_auth_v1';
+const KEY_DATA = 'meu_financeiro_v1';
+const now = new Date();
 
-let state = JSON.parse(localStorage.getItem(KEY)||'null') || {
+// SESSÃO DE LOGIN
+function checkAuth() {
+  const isAuth = localStorage.getItem(KEY_AUTH);
+  if (isAuth === 'true') {
+    document.getElementById('loginScreen').style.display = 'none';
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+}
+
+function handleLogin() {
+  const pass = document.getElementById('loginPass').value.trim();
+
+  if (pass.toLowerCase() === 'jr123') {
+    localStorage.setItem(KEY_AUTH, 'true');
+    document.getElementById('loginScreen').style.display = 'none';
+    renderMonth();
+  } else {
+    alert('Senha incorreta! Digite jr123');
+    document.getElementById('loginPass').value = '';
+  }
+}
+
+function handleLogout() {
+  localStorage.removeItem(KEY_AUTH);
+  checkAuth();
+}
+
+let state = JSON.parse(localStorage.getItem(KEY_DATA)||'null') || {
   groups:[
     {id:'g1',name:'Alimentação'},{id:'g2',name:'Estudos'},{id:'g3',name:'Moradia'},
     {id:'g4',name:'Transporte'},{id:'g5',name:'Lazer'},{id:'g6',name:'Salário'}
@@ -154,7 +318,7 @@ let state = JSON.parse(localStorage.getItem(KEY)||'null') || {
   transactions:[]
 };
 
-let selectedMonth=ym(now);
+let selectedMonth = ym(now);
 
 // ESCUTA EM TEMPO REAL NO FIREBASE
 dbFirestore.collection('financeiro').doc('dados_gerais').onSnapshot((doc) => {
@@ -162,17 +326,17 @@ dbFirestore.collection('financeiro').doc('dados_gerais').onSnapshot((doc) => {
     const data = doc.data() || {};
     state.groups = data.groups || state.groups;
     state.transactions = data.transactions || [];
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(KEY_DATA, JSON.stringify(state));
   } else {
     save();
   }
-  renderMonth();
+  if (localStorage.getItem(KEY_AUTH) === 'true') renderMonth();
 }, (error) => {
   console.error("Erro na sincronização Firebase:", error);
 });
 
 function save(){
-  localStorage.setItem(KEY,JSON.stringify(state));
+  localStorage.setItem(KEY_DATA, JSON.stringify(state));
   dbFirestore.collection('financeiro').doc('dados_gerais').set({
     groups: state.groups,
     transactions: state.transactions
@@ -351,6 +515,9 @@ document.getElementById('cancelModal').onclick=closeTx;
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setType(b.dataset.type));
 document.getElementById('installment').onchange=toggleOptions;
 document.getElementById('recurring').onchange=toggleOptions;
+
+// INICIALIZAÇÃO
+checkAuth();
 openMonth(selectedMonth);
 </script>
 </body>
