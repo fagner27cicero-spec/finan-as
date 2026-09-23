@@ -71,11 +71,9 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 
 /* GROUPS */
 .groups{display:flex;flex-direction:column;gap:14px}
-.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow);touch-action:pan-y;transition:transform .15s ease, box-shadow .15s ease}
-.group-card.dragging{opacity:.6;transform:scale(.98);box-shadow:0 20px 40px rgba(0,0,0,.25);border:2px dashed var(--primary)}
-.group-head{display:flex;align-items:center;justify-content:space-between;user-select:none}
+.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow)}
+.group-head{display:flex;align-items:center;justify-content:space-between;user-select:none;cursor:pointer}
 .group-title-box{display:flex;align-items:center;gap:8px}
-.drag-handle{color:var(--muted);font-size:14px;opacity:.6}
 .group-name{font-weight:800;font-size:15px}
 .group-right-box{display:flex;align-items:center;gap:10px}
 .group-collapsed-total{font-size:14px;font-weight:800;display:none}
@@ -137,7 +135,8 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 
 /* GROUP LIST (settings modal) */
 .grouplist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-weight:600;font-size:14px}
-.grouplist-actions{display:flex;gap:6px}
+.grouplist-actions{display:flex;gap:4px;align-items:center}
+.btn-move{background:var(--surface-2);width:28px;height:28px;border-radius:8px;font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--text)}
 
 /* TOAST + CONFIRM */
 #toasts{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;width:100%;max-width:360px;padding:0 16px}
@@ -399,107 +398,25 @@ function toggleGroupCollapse(groupId, e){
   }
 }
 
-/* REORDENAÇÃO DE GRUPOS - APENAS QUANDO MINIMIZADO E COM LONG-PRESS DE 2 SEGUNDOS */
-function reorderGroups(fromIdx, toIdx){
-  const tx=state.transactions.filter(t=>t.month===selectedMonth);
-  const used=state.groups.filter(g=>tx.some(t=>t.groupId===g.id));
+/* MOVER POSIÇÃO DO GRUPO PARA CIMA OU PARA BAIXO */
+function moveGroupOrder(id, direction){
+  const idx = state.groups.findIndex(g => g.id === id);
+  if(idx === -1) return;
   
-  const movedGroup = used[fromIdx];
-  const targetGroup = used[toIdx];
-  
-  if(!movedGroup || !targetGroup) return;
-
-  const realFrom = state.groups.findIndex(g=>g.id===movedGroup.id);
-  const realTo = state.groups.findIndex(g=>g.id===targetGroup.id);
-
-  if(realFrom !== -1 && realTo !== -1){
-    const [item] = state.groups.splice(realFrom, 1);
-    state.groups.splice(realTo, 0, item);
-    save();
-    renderMonth();
-    toast('Ordem dos grupos atualizada');
+  if(direction === 'up' && idx > 0){
+    const temp = state.groups[idx];
+    state.groups[idx] = state.groups[idx - 1];
+    state.groups[idx - 1] = temp;
+  } else if(direction === 'down' && idx < state.groups.length - 1){
+    const temp = state.groups[idx];
+    state.groups[idx] = state.groups[idx + 1];
+    state.groups[idx + 1] = temp;
   }
-}
-
-let longPressTimer = null;
-let isLongPressActive = false;
-let activeDragIdx = null;
-let touchStartY = 0;
-
-function attachTouchDrag(cardEl, idx){
-  const cancelTimer = () => {
-    if(longPressTimer){
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  };
-
-  cardEl.addEventListener('touchstart', (e)=>{
-    if(e.target.closest('.mini, button, select, input, .group-toggle')) return;
-    
-    // REGRA 1: SÓ PERMITE REORDENAR SE O GRUPO ESTIVER MINIMIZADO
-    if(!cardEl.classList.contains('is-collapsed')) return;
-
-    cancelTimer();
-    touchStartY = e.touches[0].clientY;
-    
-    // REGRA 2: PRESSIONAR E SEGURAR POR 2 SEGUNDOS (2000ms)
-    longPressTimer = setTimeout(() => {
-      isLongPressActive = true;
-      activeDragIdx = idx;
-      cardEl.classList.add('dragging');
-      if(navigator.vibrate) navigator.vibrate(50); // Feedback tátil ao ativar
-      toast('Modo de ordenação ativado: arraste para mover');
-    }, 2000);
-  }, {passive:true});
-
-  cardEl.addEventListener('touchmove', (e)=>{
-    const currentY = e.touches[0].clientY;
-    
-    // Se o usuário mover o dedo antes dos 2 segundos, cancela o temporizador para permitir a rolagem da página
-    if(!isLongPressActive){
-      if(Math.abs(currentY - touchStartY) > 10){
-        cancelTimer();
-      }
-      return;
-    }
-
-    // Se o modo de ordenação ativou, move o card
-    const deltaY = currentY - touchStartY;
-    cardEl.style.transform = `translateY(${deltaY}px)`;
-  }, {passive:true});
-
-  cardEl.addEventListener('touchend', (e)=>{
-    cancelTimer();
-    
-    if(isLongPressActive && activeDragIdx !== null){
-      const endY = e.changedTouches[0].clientY;
-      cardEl.style.transform = '';
-      cardEl.classList.remove('dragging');
-
-      const cards = Array.from(document.querySelectorAll('.group-card'));
-      const target = cards.find(c => {
-        const r = c.getBoundingClientRect();
-        return endY >= r.top && endY <= r.bottom;
-      });
-
-      if(target){
-        const targetIdx = parseInt(target.dataset.idx);
-        if(!isNaN(targetIdx) && targetIdx !== activeDragIdx){
-          reorderGroups(activeDragIdx, targetIdx);
-        }
-      }
-      
-      // Bloqueia o clique do evento toggle após soltar
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    isLongPressActive = false;
-    activeDragIdx = null;
-  });
-
-  cardEl.addEventListener('touchcancel', cancelTimer);
+  
+  save();
+  renderMonth();
+  renderGroupList();
+  toast('Ordem do grupo alterada');
 }
 
 function renderMonth(){
@@ -523,13 +440,12 @@ function renderMonth(){
     groups.innerHTML=`<div class="empty">Nenhuma transação neste mês ainda.<br><span style="font-size:12.5px">Toque no botão + para começar.</span></div>`;
     return;
   }
-  groups.innerHTML=used.map((g, idx)=>{
+  groups.innerHTML=used.map((g)=>{
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
-    return `<div class="group-card" id="g-card-${g.id}" data-idx="${idx}">
+    return `<div class="group-card" id="g-card-${g.id}">
       <div class="group-head" onclick="toggleGroupCollapse('${g.id}', event)">
         <div class="group-title-box">
-          <span class="drag-handle" title="Segure por 2s para ordenar">⣿</span>
           <div class="group-name">${esc(g.name)}</div>
         </div>
         <div class="group-right-box">
@@ -549,8 +465,6 @@ function renderMonth(){
       </div>
     </div>`;
   }).join('');
-
-  document.querySelectorAll('.group-card').forEach((card, i) => attachTouchDrag(card, i));
 }
 
 /* ===== TRANSAÇÕES ===== */
@@ -672,9 +586,11 @@ function deleteGroup(id){
   });
 }
 function renderGroupList(){
-  document.getElementById('groupList').innerHTML=state.groups.map(g=>`<div class="grouplist-row">
+  document.getElementById('groupList').innerHTML=state.groups.map((g, idx)=>`<div class="grouplist-row">
     <span>${esc(g.name)}</span>
     <div class="grouplist-actions">
+      <button class="btn-move" onclick="moveGroupOrder('${g.id}', 'up')" title="Subir">▲</button>
+      <button class="btn-move" onclick="moveGroupOrder('${g.id}', 'down')" title="Descer">▼</button>
       <button class="mini" onclick="editGroup('${g.id}')">Renomear</button>
       <button class="mini" onclick="deleteGroup('${g.id}')">Excluir</button>
     </div>
