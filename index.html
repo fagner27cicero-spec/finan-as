@@ -72,8 +72,12 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 /* GROUPS */
 .groups{display:flex;flex-direction:column;gap:14px}
 .group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow)}
-.group-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.group-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
 .group-name{font-weight:800;font-size:15px}
+.group-toggle{width:28px;height:28px;border-radius:50%;background:var(--surface-2);font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s ease;color:var(--muted)}
+.group-toggle.collapsed{transform:rotate(-90deg)}
+.group-body{overflow:hidden;max-height:2000px;transition:max-height .25s ease-out, opacity .2s ease;opacity:1}
+.group-body.collapsed{max-height:0;opacity:0}
 .group-total{font-size:22px;font-weight:800;margin:6px 0 12px}
 .group-total.income{color:var(--income)}
 .group-total.expense{color:var(--expense)}
@@ -373,6 +377,16 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 
 function openMonth(key){selectedMonth=key;renderMonth()}
 
+/* MINIMIZAR / MAXIMIZAR GRUPO */
+function toggleGroupCollapse(groupId){
+  const bodyEl = document.getElementById(`g-body-${groupId}`);
+  const toggleEl = document.getElementById(`g-toggle-${groupId}`);
+  if(bodyEl && toggleEl){
+    bodyEl.classList.toggle('collapsed');
+    toggleEl.classList.toggle('collapsed');
+  }
+}
+
 function renderMonth(){
   document.getElementById('monthTitle').textContent=monthLabel(selectedMonth);
   const tx=state.transactions.filter(t=>t.month===selectedMonth);
@@ -398,15 +412,20 @@ function renderMonth(){
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
     return `<div class="group-card">
-      <div class="group-head"><div class="group-name">${esc(g.name)}</div></div>
-      <div class="group-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
-      ${items.map(t=>`<div class="tx-row">
-        <div class="tx-info"><strong>${esc(t.description)}</strong><small>${t.type==='expense'?'Gasto':'Receita'} · ${formatDate(t.date)}${t.installmentInfo?` · ${t.installmentInfo}`:''}${t.recurring?' · Recorrente':''}</small></div>
-        <div style="text-align:right">
-          <div class="tx-amt ${t.type==='expense'?'expense':'income'}" style="color:var(--${t.type})">${t.type==='expense'?'-':'+'}${money(t.amount)}</div>
-          <div class="tx-actions"><button class="mini" onclick="editTx('${t.id}')">Editar</button><button class="mini" onclick="deleteTx('${t.id}')">Excluir</button></div>
-        </div>
-      </div>`).join('')}
+      <div class="group-head" onclick="toggleGroupCollapse('${g.id}')">
+        <div class="group-name">${esc(g.name)}</div>
+        <span class="group-toggle" id="g-toggle-${g.id}">▼</span>
+      </div>
+      <div class="group-body" id="g-body-${g.id}">
+        <div class="group-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
+        ${items.map(t=>`<div class="tx-row">
+          <div class="tx-info"><strong>${esc(t.description)}</strong><small>${t.type==='expense'?'Gasto':'Receita'} · ${formatDate(t.date)}${t.installmentInfo?` · ${t.installmentInfo}`:''}${t.recurring?' · Recorrente':''}</small></div>
+          <div style="text-align:right">
+            <div class="tx-amt ${t.type==='expense'?'expense':'income'}" style="color:var(--${t.type})">${t.type==='expense'?'-':'+'}${money(t.amount)}</div>
+            <div class="tx-actions"><button class="mini" onclick="editTx('${t.id}')">Editar</button><button class="mini" onclick="deleteTx('${t.id}')">Excluir</button></div>
+          </div>
+        </div>`).join('')}
+      </div>
     </div>`;
   }).join('');
 }
@@ -556,7 +575,7 @@ function parseCSVContent(text){
     let dateVal='',descVal='',amountVal=NaN;
     cols.forEach(col=>{
       let colClean=col.replace('R$','').trim();
-      if(/^\d{4}[\/-]\d{2}[\/-]\d{2}$|^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(col)){dateVal=col}
+      if(/^\d{4}[\/-]\d{2}[\/-]\d{2}$\vert{}^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(col)){dateVal=col}
       else if(/^-?\s*\d[\d\.\,\s]*$/.test(colClean)&&isNaN(amountVal)&&/\d/.test(colClean)){
         let clean=colClean.replace(/\s+/g,'').replace(/\./g,'').replace(',','.');amountVal=parseFloat(clean);
       } else if(!descVal&&col.length>0){descVal=col}
