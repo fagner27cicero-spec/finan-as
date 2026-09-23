@@ -71,8 +71,12 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 
 /* GROUPS */
 .groups{display:flex;flex-direction:column;gap:14px}
-.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow)}
-.group-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow);cursor:grab;touch-action:pan-y;transition:transform .15s ease, box-shadow .15s ease}
+.group-card:active{cursor:grabbing}
+.group-card.dragging{opacity:.5;transform:scale(.98);box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.group-head{display:flex;align-items:center;justify-content:space-between;user-select:none}
+.group-title-box{display:flex;align-items:center;gap:8px}
+.drag-handle{color:var(--muted);font-size:14px;cursor:grab;opacity:.6}
 .group-name{font-weight:800;font-size:15px}
 .group-toggle{width:28px;height:28px;border-radius:50%;background:var(--surface-2);font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s ease;color:var(--muted)}
 .group-toggle.collapsed{transform:rotate(-90deg)}
@@ -379,13 +383,104 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 function openMonth(key){selectedMonth=key;renderMonth()}
 
 /* MINIMIZAR / MAXIMIZAR GRUPO */
-function toggleGroupCollapse(groupId){
+function toggleGroupCollapse(groupId, e){
+  if(e && e.target.closest('.mini, button')) return;
   const bodyEl = document.getElementById(`g-body-${groupId}`);
   const toggleEl = document.getElementById(`g-toggle-${groupId}`);
   if(bodyEl && toggleEl){
     bodyEl.classList.toggle('collapsed');
     toggleEl.classList.toggle('collapsed');
   }
+}
+
+/* DRAG AND DROP / TOUCH ORDENAÇÃO DE GRUPOS */
+let dragSrcIdx = null;
+
+function handleDragStart(e, idx){
+  dragSrcIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.classList.add('dragging');
+}
+
+function handleDragOver(e){
+  if(e.preventDefault) e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  return false;
+}
+
+function handleDrop(e, targetIdx){
+  if(e.stopPropagation) e.stopPropagation();
+  if(dragSrcIdx !== null && dragSrcIdx !== targetIdx){
+    reorderGroups(dragSrcIdx, targetIdx);
+  }
+  return false;
+}
+
+function handleDragEnd(e){
+  document.querySelectorAll('.group-card').forEach(c=>c.classList.remove('dragging'));
+}
+
+function reorderGroups(fromIdx, toIdx){
+  const tx=state.transactions.filter(t=>t.month===selectedMonth);
+  const used=state.groups.filter(g=>tx.some(t=>t.groupId===g.id));
+  
+  const movedGroup = used[fromIdx];
+  const targetGroup = used[toIdx];
+  
+  if(!movedGroup || !targetGroup) return;
+
+  const realFrom = state.groups.findIndex(g=>g.id===movedGroup.id);
+  const realTo = state.groups.findIndex(g=>g.id===targetGroup.id);
+
+  if(realFrom !== -1 && realTo !== -1){
+    const [item] = state.groups.splice(realFrom, 1);
+    state.groups.splice(realTo, 0, item);
+    save();
+    renderMonth();
+    toast('Ordem dos grupos atualizada');
+  }
+}
+
+/* Touch Drag para Smartphones */
+let touchCard = null, touchStartY = 0, touchStartIdx = null;
+
+function attachTouchDrag(cardEl, idx){
+  cardEl.addEventListener('touchstart', (e)=>{
+    if(e.target.closest('.mini, button, select, input, .group-toggle')) return;
+    touchCard = cardEl;
+    touchStartY = e.touches[0].clientY;
+    touchStartIdx = idx;
+  }, {passive:true});
+
+  cardEl.addEventListener('touchmove', (e)=>{
+    if(!touchCard) return;
+    const deltaY = e.touches[0].clientY - touchStartY;
+    if(Math.abs(deltaY) > 12){
+      touchCard.classList.add('dragging');
+      touchCard.style.transform = `translateY(${deltaY}px)`;
+    }
+  }, {passive:true});
+
+  cardEl.addEventListener('touchend', (e)=>{
+    if(!touchCard) return;
+    const endY = e.changedTouches[0].clientY;
+    touchCard.style.transform = '';
+    touchCard.classList.remove('dragging');
+
+    const cards = Array.from(document.querySelectorAll('.group-card'));
+    const target = cards.find(c=>{
+      const r = c.getBoundingClientRect();
+      return endY >= r.top && endY <= r.bottom;
+    });
+
+    if(target){
+      const targetIdx = parseInt(target.dataset.idx);
+      if(!isNaN(targetIdx) && targetIdx !== touchStartIdx){
+        reorderGroups(touchStartIdx, targetIdx);
+      }
+    }
+    touchCard = null;
+  });
 }
 
 function renderMonth(){
@@ -409,12 +504,19 @@ function renderMonth(){
     groups.innerHTML=`<div class="empty">Nenhuma transação neste mês ainda.<br><span style="font-size:12.5px">Toque no botão + para começar.</span></div>`;
     return;
   }
-  groups.innerHTML=used.map(g=>{
+  groups.innerHTML=used.map((g, idx)=>{
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
-    return `<div class="group-card">
-      <div class="group-head" onclick="toggleGroupCollapse('${g.id}')">
-        <div class="group-name">${esc(g.name)}</div>
+    return `<div class="group-card" data-idx="${idx}" draggable="true" 
+      ondragstart="handleDragStart(event, ${idx})" 
+      ondragover="handleDragOver(event)" 
+      ondrop="handleDrop(event, ${idx})" 
+      ondragend="handleDragEnd(event)">
+      <div class="group-head" onclick="toggleGroupCollapse('${g.id}', event)">
+        <div class="group-title-box">
+          <span class="drag-handle" title="Arraste para reordenar">⣿</span>
+          <div class="group-name">${esc(g.name)}</div>
+        </div>
         <span class="group-toggle" id="g-toggle-${g.id}">▼</span>
       </div>
       <div class="group-body" id="g-body-${g.id}">
@@ -429,6 +531,9 @@ function renderMonth(){
       </div>
     </div>`;
   }).join('');
+
+  // Ativa suporte ao toque em smartphones
+  document.querySelectorAll('.group-card').forEach((card, i) => attachTouchDrag(card, i));
 }
 
 /* ===== TRANSAÇÕES ===== */
