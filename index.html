@@ -613,7 +613,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setType(b.dataset.typ
 document.getElementById('installment').onchange=toggleOptions;
 document.getElementById('recurring').onchange=toggleOptions;
 
-/* ===== IMPORTAÇÃO ROBUTA DE FATURA CSV (NUBANK E DEMAIS BANCOS) ===== */
+/* ===== IMPORTAÇÃO ROBUTA DE FATURA CSV E CRIAÇÃO DAS PARCELAS FUTURAS ===== */
 function processCSVFile(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
@@ -628,7 +628,6 @@ function parseCSVContent(text){
   lines.forEach(line=>{
     if(!line.trim())return;
 
-    // Extrai colunas respeitando valores entre aspas (como "187,41" ou "- 1.921,32")
     const cols=[];
     const regex=/(?:"([^"]*)"|([^,;]+))/g;
     let match;
@@ -637,14 +636,12 @@ function parseCSVContent(text){
     }
 
     if(cols.length<2)return;
-    // Ignora cabeçalhos
     if(cols[0].toLowerCase()==='date'||cols[1].toLowerCase()==='title')return;
 
     let dateVal='', descVal='', amountVal=null;
 
     cols.forEach(col=>{
       let colClean=col.replace('R$','').trim();
-      // Verifica se é data YYYY-MM-DD ou DD/MM/YYYY
       if(/^\d{4}[\/-]\d{2}[\/-]\d{2}$|^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(col)){         dateVal=col;       } else if(/^-?\s*\d[\d\.\,\s]*$/.test(colClean) && amountVal===null && /\d/.test(colClean)){
         let clean=colClean.replace(/\s+/g,'').replace(/\./g,'').replace(',','.');
         let num=parseFloat(clean);
@@ -658,19 +655,19 @@ function parseCSVContent(text){
       let isExpense = amountVal > 0;
       let absAmount = Math.abs(amountVal);
 
-      // Detecta parcelamento no nome (ex: "Carrefour kleb - Parcela 1/8" ou "Parc 2/10")
       let installmentInfo=null;
+      let currentInst=1, totalInst=1;
       let cleanDesc = descVal;
       const matchParc = descVal.match(/(?:-\s*)?(?:parcela\s*)?(\d{1,2})\/(\d{1,2})/i);
       
       if(matchParc){
-        installmentInfo = `${matchParc[1]}/${matchParc[2]}`;
-        // Limpa a palavra "- Parcela 1/8" do nome principal para não duplicar na exibição
+        currentInst = parseInt(matchParc[1]);
+        totalInst = parseInt(matchParc[2]);
+        installmentInfo = `${currentInst}/${totalInst}`;
         cleanDesc = descVal.replace(/[\s\-\_]*(?:parcela\s*)?\d{1,2}\/\d{1,2}.*/i, '').trim();
         if(!cleanDesc) cleanDesc = descVal;
       }
 
-      // Converte data para YYYY-MM-DD
       let formattedDate=dateInput(selectedMonth);
       if(dateVal){
         let parts=dateVal.split(/[\/-]/);
@@ -685,7 +682,9 @@ function parseCSVContent(text){
         type: isExpense ? 'expense' : 'income',
         date: formattedDate,
         groupId: state.groups[0]?.id || '',
-        installmentInfo
+        installmentInfo,
+        currentInst,
+        totalInst
       });
     }
   });
@@ -737,29 +736,60 @@ function confirmCSVImport(){
 
   parsedCSVRows.forEach((item, index) => {
     if(index === 0 && item.date) {
-      targetMonth = item.date.slice(0, 7); // Mês da fatura importada (ex: 2026-09)
+      targetMonth = item.date.slice(0, 7);
     }
 
-    state.transactions.push({
-      id: uid(),
-      parentId: item.id,
-      description: item.description,
-      amount: item.amount,
-      groupId: item.groupId,
-      date: item.date,
-      month: item.date.slice(0, 7),
-      type: item.type,
-      installmentInfo: item.installmentInfo,
-      recurring: false
-    });
+    const baseParentId = item.id;
+    const baseMonthKey = item.date.slice(0, 7);
+
+    // Se for parcelado, projeta as parcelas restantes para os meses futuros
+    if(item.totalInst > 1 && item.currentInst <= item.totalInst) {
+      const remainingCount = item.totalInst - item.currentInst;
+      
+      for(let step = 0; step <= remainingCount; step++) {
+        const instNum = item.currentInst + step;
+        const monthKey = addMonths(baseMonthKey, step);
+        const d = new Date(item.date + 'T12:00:00');
+        d.setMonth(d.getMonth() + step);
+        const instDate = d.toISOString().slice(0, 10);
+
+        state.transactions.push({
+          id: step === 0 ? baseParentId : uid(),
+          parentId: baseParentId,
+          description: item.description,
+          amount: item.amount,
+          groupId: item.groupId,
+          date: instDate,
+          month: monthKey,
+          type: item.type,
+          installmentInfo: `${instNum}/${item.totalInst}`,
+          installmentNumber: instNum,
+          installmentTotal: item.totalInst,
+          recurring: false
+        });
+      }
+    } else {
+      // Lançamento normal à vista
+      state.transactions.push({
+        id: baseParentId,
+        parentId: baseParentId,
+        description: item.description,
+        amount: item.amount,
+        groupId: item.groupId,
+        date: item.date,
+        month: item.date.slice(0, 7),
+        type: item.type,
+        installmentInfo: null,
+        recurring: false
+      });
+    }
   });
 
   save();
   closeCSVModal();
   
-  // Muda a tela automaticamente para o mês da fatura importada para você ver tudo imediatamente
   openMonth(targetMonth);
-  toast(`Fatura importada com sucesso para ${monthLabel(targetMonth)}!`);
+  toast(`Fatura e parcelas futuras importadas para ${monthLabel(targetMonth)}!`);
 }
 
 /* ===== INIT ===== */
