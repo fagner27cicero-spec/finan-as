@@ -52,7 +52,7 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 .tools{display:flex;align-items:center;gap:8px}
 .iconbtn{width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--border);font-size:17px;display:flex;align-items:center;justify-content:center;color:var(--text)}
 .iconbtn:hover{background:var(--surface-2)}
-.csv-label{width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:17px}
+.csv-label{width:40px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer}
 
 /* MONTH SWITCH */
 .month-switch{display:flex;align-items:center;justify-content:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 10px;margin-bottom:18px;box-shadow:var(--shadow)}
@@ -127,11 +127,12 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 .danger-btn{background:var(--expense-bg);color:var(--expense);padding:12px 20px;border-radius:12px;font-weight:700;font-size:14px}
 .recurring-box{margin-top:12px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:14px}
 
-/* CSV */
-.csv-list-item{display:flex;flex-direction:column;gap:8px;padding:13px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface-2)}
-.csv-row-head{display:flex;justify-content:space-between;font-weight:700;font-size:14px}
-.csv-row-inputs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.csv-row-inputs select,.csv-row-inputs input{font-size:12.5px;padding:8px;border-radius:99px;border:1px solid var(--border);background:var(--bg)}
+/* CSV MODAL COMPLETO */
+.csv-list-item{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:16px;margin-bottom:12px;background:var(--surface-2)}
+.csv-row-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px}
+.csv-badge-parc{background:var(--surface);border:1px solid var(--primary);color:var(--primary);font-size:11px;font-weight:800;padding:2px 8px;border-radius:8px;margin-left:6px}
+.csv-row-inputs{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px}
+.csv-row-inputs select,.csv-row-inputs input{font-size:13px;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg);width:100%}
 
 /* GROUP LIST (settings modal) */
 .grouplist-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-weight:600;font-size:14px}
@@ -144,7 +145,7 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 .toast.err{color:var(--expense)}
 @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
 
-@media(max-width:480px){.form-grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr}.csv-row-inputs{grid-template-columns:1fr}}
+@media(max-width:580px){.form-grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr}.csv-row-inputs{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -254,9 +255,9 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 <!-- MODAL CSV -->
 <div id="csvModal" class="modal hidden">
   <div class="modal-box">
-    <div class="modal-head"><h2>Mapear fatura</h2><button class="close" onclick="closeCSVModal()">×</button></div>
-    <p class="notice">Encontramos os itens abaixo na sua fatura. Confirme os grupos e tipos antes de importar:</p>
-    <div id="csvImportContainer" style="max-height:50vh;overflow-y:auto;margin:12px 0"></div>
+    <div class="modal-head"><h2>Mapear Fatura CSV</h2><button class="close" onclick="closeCSVModal()">×</button></div>
+    <p class="notice">Confirme os nomes, grupos e tipos das compras encontradas no arquivo:</p>
+    <div id="csvImportContainer" style="max-height:55vh;overflow-y:auto;margin:12px 0"></div>
     <div class="actions">
       <button type="button" class="secondary" onclick="closeCSVModal()">Cancelar</button>
       <button class="primary" onclick="confirmCSVImport()">Confirmar e importar</button>
@@ -381,7 +382,7 @@ function monthLabel(key){return monthDate(key).toLocaleDateString('pt-BR',{month
 function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 function dateInput(key){return key+'-01'}
 function formatDate(s){return new Date(s+'T12:00:00').toLocaleDateString('pt-BR')}
-function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 
 function openMonth(key){selectedMonth=key;renderMonth()}
 
@@ -612,73 +613,153 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setType(b.dataset.typ
 document.getElementById('installment').onchange=toggleOptions;
 document.getElementById('recurring').onchange=toggleOptions;
 
-/* ===== IMPORTAÇÃO DE CSV ===== */
+/* ===== IMPORTAÇÃO ROBUTA DE FATURA CSV (NUBANK E DEMAIS BANCOS) ===== */
 function processCSVFile(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=function(evt){parseCSVContent(evt.target.result);e.target.value=''};
   reader.readAsText(file);
 }
+
 function parseCSVContent(text){
   const lines=text.split(/\r\n|\n/);
   parsedCSVRows=[];
+
   lines.forEach(line=>{
     if(!line.trim())return;
+
+    // Extrai colunas respeitando valores entre aspas (como "187,41" ou "- 1.921,32")
     const cols=[];
     const regex=/(?:"([^"]*)"|([^,;]+))/g;
     let match;
-    while((match=regex.exec(line))!==null){cols.push((match[1]!==undefined?match[1]:match[2]).trim())}
+    while((match=regex.exec(line))!==null){
+      cols.push((match[1]!==undefined?match[1]:match[2]).trim());
+    }
+
     if(cols.length<2)return;
+    // Ignora cabeçalhos
     if(cols[0].toLowerCase()==='date'||cols[1].toLowerCase()==='title')return;
-    let dateVal='',descVal='',amountVal=NaN;
+
+    let dateVal='', descVal='', amountVal=null;
+
     cols.forEach(col=>{
       let colClean=col.replace('R$','').trim();
-      if(/^\d{4}[\/-]\d{2}[\/-]\d{2}$\vert{}^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(col)){dateVal=col}
-      else if(/^-?\s*\d[\d\.\,\s]*$/.test(colClean)&&isNaN(amountVal)&&/\d/.test(colClean)){
-        let clean=colClean.replace(/\s+/g,'').replace(/\./g,'').replace(',','.');amountVal=parseFloat(clean);
-      } else if(!descVal&&col.length>0){descVal=col}
+      // Verifica se é data YYYY-MM-DD ou DD/MM/YYYY
+      if(/^\d{4}[\/-]\d{2}[\/-]\d{2}$|^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(col)){         dateVal=col;       } else if(/^-?\s*\d[\d\.\,\s]*$/.test(colClean) && amountVal===null && /\d/.test(colClean)){
+        let clean=colClean.replace(/\s+/g,'').replace(/\./g,'').replace(',','.');
+        let num=parseFloat(clean);
+        if(!isNaN(num)) amountVal=num;
+      } else if(!descVal && col.length>0){
+        descVal=col;
+      }
     });
-    if(descVal&&!isNaN(amountVal)&&amountVal!==0){
-      let isExpense=amountVal>0;let absAmount=Math.abs(amountVal);
+
+    if(descVal && amountVal!==null && amountVal!==0){
+      let isExpense = amountVal > 0;
+      let absAmount = Math.abs(amountVal);
+
+      // Detecta parcelamento no nome (ex: "Carrefour kleb - Parcela 1/8" ou "Parc 2/10")
       let installmentInfo=null;
-      const matchParc=descVal.match(/(?:parcela\s*)?(\d{1,2})\/(\d{1,2})/i);
-      if(matchParc)installmentInfo=`${matchParc[1]}/${matchParc[2]}`;
+      let cleanDesc = descVal;
+      const matchParc = descVal.match(/(?:-\s*)?(?:parcela\s*)?(\d{1,2})\/(\d{1,2})/i);
+      
+      if(matchParc){
+        installmentInfo = `${matchParc[1]}/${matchParc[2]}`;
+        // Limpa a palavra "- Parcela 1/8" do nome principal para não duplicar na exibição
+        cleanDesc = descVal.replace(/[\s\-\_]*(?:parcela\s*)?\d{1,2}\/\d{1,2}.*/i, '').trim();
+        if(!cleanDesc) cleanDesc = descVal;
+      }
+
+      // Converte data para YYYY-MM-DD
       let formattedDate=dateInput(selectedMonth);
       if(dateVal){
         let parts=dateVal.split(/[\/-]/);
-        if(parts[0].length===4)formattedDate=`${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-        else if(parts[2].length===4)formattedDate=`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        if(parts[0].length===4) formattedDate=`${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+        else if(parts[2].length===4) formattedDate=`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
       }
-      parsedCSVRows.push({id:uid(),description:descVal,amount:absAmount,type:isExpense?'expense':'income',date:formattedDate,groupId:state.groups[0]?.id||'',installmentInfo});
+
+      parsedCSVRows.push({
+        id: uid(),
+        description: cleanDesc,
+        amount: absAmount,
+        type: isExpense ? 'expense' : 'income',
+        date: formattedDate,
+        groupId: state.groups[0]?.id || '',
+        installmentInfo
+      });
     }
   });
-  if(parsedCSVRows.length===0){toast('Não foi possível ler as transações do CSV.','err');return}
+
+  if(parsedCSVRows.length===0){
+    toast('Não foi possível ler as transações do CSV.','err');
+    return;
+  }
   renderCSVModal();
 }
+
 function renderCSVModal(){
   const container=document.getElementById('csvImportContainer');
   const defaultGroup=state.groups[0]?.id||'';
+
   container.innerHTML=parsedCSVRows.map((item,idx)=>`
     <div class="csv-list-item">
-      <div class="csv-row-head"><span>${esc(item.description)}</span><span style="color:var(--${item.type})">${money(item.amount)}</span></div>
+      <div class="csv-row-head">
+        <div>
+          <span style="color:var(--text);font-weight:800">${money(item.amount)}</span>
+          ${item.installmentInfo ? `<span class="csv-badge-parc">🏷️ Parcela ${item.installmentInfo}</span>` : ''}
+        </div>
+        <span style="color:var(--${item.type});font-size:12px;font-weight:700">${item.type==='expense'?'Gasto':'Receita'}</span>
+      </div>
       <div class="csv-row-inputs">
-        <select onchange="parsedCSVRows[${idx}].groupId=this.value">${state.groups.map(g=>`<option value="${g.id}" ${g.id===defaultGroup?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
+        <input type="text" value="${esc(item.description)}" onchange="parsedCSVRows[${idx}].description=this.value" placeholder="Descrição da compra">
+        <select onchange="parsedCSVRows[${idx}].groupId=this.value">
+          ${state.groups.map(g=>`<option value="${g.id}" ${g.id===defaultGroup?'selected':''}>${esc(g.name)}</option>`).join('')}
+        </select>
         <select onchange="parsedCSVRows[${idx}].type=this.value">
           <option value="expense" ${item.type==='expense'?'selected':''}>Gasto</option>
           <option value="income" ${item.type==='income'?'selected':''}>Receita</option>
         </select>
+      </div>
+      <div style="margin-top:2px">
         <input type="date" value="${item.date}" onchange="parsedCSVRows[${idx}].date=this.value">
       </div>
     </div>`).join('');
+
   document.getElementById('csvModal').classList.remove('hidden');
 }
+
 function closeCSVModal(){document.getElementById('csvModal').classList.add('hidden')}
+
 function confirmCSVImport(){
-  parsedCSVRows.forEach(item=>{
-    state.transactions.push({id:uid(),parentId:item.id,description:item.description,amount:item.amount,groupId:item.groupId,date:item.date,month:item.date.slice(0,7),type:item.type,installmentInfo:item.installmentInfo,recurring:false});
+  if(!parsedCSVRows.length) return;
+
+  let targetMonth = selectedMonth;
+
+  parsedCSVRows.forEach((item, index) => {
+    if(index === 0 && item.date) {
+      targetMonth = item.date.slice(0, 7); // Mês da fatura importada (ex: 2026-09)
+    }
+
+    state.transactions.push({
+      id: uid(),
+      parentId: item.id,
+      description: item.description,
+      amount: item.amount,
+      groupId: item.groupId,
+      date: item.date,
+      month: item.date.slice(0, 7),
+      type: item.type,
+      installmentInfo: item.installmentInfo,
+      recurring: false
+    });
   });
-  save();closeCSVModal();openMonth(selectedMonth);
-  toast('Importação do CSV concluída com sucesso!');
+
+  save();
+  closeCSVModal();
+  
+  // Muda a tela automaticamente para o mês da fatura importada para você ver tudo imediatamente
+  openMonth(targetMonth);
+  toast(`Fatura importada com sucesso para ${monthLabel(targetMonth)}!`);
 }
 
 /* ===== INIT ===== */
