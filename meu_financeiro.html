@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Financeiro</title>
+<style>
+:root{
+  --bg:#f5f7fb;--card:#fff;--text:#18212f;--muted:#718096;--primary:#ff7b00;
+  --primary2:#ff9d3d;--border:#e7ebf1;--income:#159957;--expense:#dc3545;--shadow:0 10px 30px rgba(20,30,50,.08);
+}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit} button{cursor:pointer;border:0}
+.app{max-width:1180px;margin:auto;padding:24px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.brand{font-size:24px;font-weight:800}.brand span{color:var(--primary)}
+.iconbtn{width:44px;height:44px;border-radius:14px;background:var(--card);box-shadow:var(--shadow);font-size:22px}
+.months{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 16px}
+.month-card{min-width:150px;padding:18px;border-radius:18px;background:var(--card);border:1px solid var(--border);text-align:left}
+.month-card.current{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;border:0;box-shadow:var(--shadow)}
+.month-card .name{font-weight:800}.month-card .year{font-size:12px;opacity:.7;margin-top:4px}
+.section-title{margin:18px 0 12px;font-size:14px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.past-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.empty{padding:35px;text-align:center;color:var(--muted);background:var(--card);border-radius:20px;border:1px dashed var(--border)}
+.hidden{display:none!important}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.back{background:var(--card);font-size:30px;width:44px;height:44px;border-radius:14px;color:var(--text);box-shadow:var(--shadow)}.page-title{flex:1}.page-title h1{margin:0;font-size:26px}.page-title p{margin:4px 0;color:var(--muted)}
+.add{background:var(--primary);color:#fff;width:48px;height:48px;border-radius:16px;font-size:28px;box-shadow:var(--shadow)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 4px 18px rgba(20,30,50,.035)}
+.label{font-size:13px;color:var(--muted)}.value{font-size:25px;font-weight:800;margin-top:8px}
+.income{color:var(--income)}.expense{color:var(--expense)}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.group-head{display:flex;align-items:center;justify-content:space-between}.group-name{font-weight:800}
+.group-total{font-size:20px;font-weight:800;margin:12px 0}.tx{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+.tx small{display:block;color:var(--muted);margin-top:3px}.tx-actions{display:flex;gap:4px}.mini{background:transparent;color:var(--muted);font-size:14px}
+.modal{position:fixed;inset:0;background:rgba(10,18,30,.5);display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}
+.modal-box{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--card);border-radius:24px;padding:24px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.modal-head h2{margin:0}
+.close{background:transparent;font-size:24px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.tab{padding:12px;border-radius:12px;background:#f0f2f5}.tab.active{background:var(--primary);color:white}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}.field label{font-size:13px;font-weight:700}.field input,.field select{border:1px solid var(--border);border-radius:12px;padding:12px;background:#fff}
+.check{display:flex;align-items:center;gap:8px;padding:12px;background:#f7f8fa;border-radius:12px}.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.primary{background:var(--primary);color:white;padding:12px 18px;border-radius:12px;font-weight:700}.secondary{background:#eef1f5;padding:12px 18px;border-radius:12px}
+.recurring-box{margin-top:14px;padding:14px;background:#fff7ef;border:1px solid #ffd7ad;border-radius:14px}
+.notice{font-size:12px;color:var(--muted);line-height:1.45}
+@media(max-width:700px){.app{padding:15px}.summary{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.past-grid{grid-template-columns:repeat(2,1fr)}.month-card{min-width:135px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">Meu <span>Financeiro</span></div>
+    <button class="iconbtn" id="manageGroups" title="Gerenciar grupos">⚙</button>
+  </header>
+
+  <section id="home" class="hidden"></section>
+
+  <section id="monthPage">
+    <div class="topbar">
+      <button class="back" id="prevMonth" title="Mês anterior">‹</button>
+      <div class="page-title" style="text-align:center">
+        <h1 id="monthTitle"></h1><p>Resumo financeiro do mês</p>
+      </div>
+      <button class="back" id="nextMonth" title="Próximo mês">›</button>
+      <button class="add" id="addTransaction" title="Adicionar transação">+</button>
+    </div>
+    <div class="summary">
+      <div class="card"><div class="label">Receitas</div><div id="sumIncome" class="value income">R$ 0,00</div></div>
+      <div class="card"><div class="label">Gastos</div><div id="sumExpense" class="value expense">R$ 0,00</div></div>
+      <div class="card"><div class="label">Saldo do mês</div><div id="sumBalance" class="value">R$ 0,00</div></div>
+    </div>
+    <div class="section-title">Grupos de gastos e receitas</div>
+    <div id="groups" class="groups"></div>
+  </section>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2 id="modalTitle">Nova transação</h2><button class="close" id="closeModal">×</button></div>
+    <div class="tabs">
+      <button class="tab active" data-type="expense">Gasto</button>
+      <button class="tab" data-type="income">Receita</button>
+    </div>
+    <form id="txForm">
+      <input type="hidden" id="editId">
+      <input type="hidden" id="txType" value="expense">
+      <div class="form-grid">
+        <div class="field"><label>Descrição</label><input id="description" required placeholder="Ex.: Lanche"></div>
+        <div class="field"><label>Valor</label><input id="amount" type="number" min="0.01" step="0.01" required placeholder="0,00"></div>
+        <div class="field"><label>Grupo</label><select id="group" required></select></div>
+        <div class="field"><label>Data</label><input id="date" type="date" required></div>
+
+        <div id="expenseOptions" class="field full">
+          <div class="check"><input id="installment" type="checkbox"><label for="installment">É parcelado?</label></div>
+          <div id="installmentBox" class="recurring-box hidden">
+            <div class="field"><label>Número de parcelas</label><input id="installments" type="number" min="2" max="120" value="2"></div>
+            <p class="notice">As parcelas serão criadas automaticamente nos meses seguintes.</p>
+          </div>
+        </div>
+
+        <div class="field full">
+          <div class="check"><input id="recurring" type="checkbox"><label for="recurring">É recorrente?</label></div>
+          <div id="recurringBox" class="recurring-box hidden">
+            <div class="form-grid">
+              <div class="field"><label>Repetir por</label><select id="recurringDuration"><option value="12">12 meses</option><option value="24">24 meses</option><option value="36">36 meses</option><option value="60">60 meses</option><option value="forever">Indefinidamente</option></select></div>
+              <div class="field"><label>Periodicidade</label><select id="recurringFrequency"><option value="monthly">Mensal</option></select></div>
+            </div>
+            <p class="notice">Ideal para salário, aluguel, assinaturas e outras movimentações que se repetem mensalmente.</p>
+          </div>
+        </div>
+      </div>
+      <div class="actions"><button type="button" class="secondary" id="cancelModal">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </div>
+</div>
+
+<div id="groupModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Grupos</h2><button class="close" id="closeGroups">×</button></div>
+    <form id="groupForm" class="form-grid">
+      <div class="field full"><label>Nome do grupo</label><input id="newGroup" placeholder="Ex.: Estudos, Lanche, Salário..." required></div>
+      <div class="actions full"><button class="primary">Adicionar grupo</button></div>
+    </form>
+    <div id="groupList"></div>
+  </div>
+</div>
+
+<script>
+const KEY='meu_financeiro_v1';
+const now=new Date();
+const state=JSON.parse(localStorage.getItem(KEY)||'null')||{
+  groups:[
+    {id:'g1',name:'Alimentação'},{id:'g2',name:'Estudos'},{id:'g3',name:'Moradia'},
+    {id:'g4',name:'Transporte'},{id:'g5',name:'Lazer'},{id:'g6',name:'Salário'}
+  ],
+  transactions:[]
+};
+let selectedMonth=ym(now);
+function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function ym(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function monthDate(key){const [y,m]=key.split('-').map(Number);return new Date(y,m-1,1)}
+function addMonths(key,n){const d=monthDate(key);d.setMonth(d.getMonth()+n);return ym(d)}
+function monthLabel(key){return monthDate(key).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function dateInput(key){return key+'-01'}
+
+function renderHome(){}
+function openMonth(key){
+  selectedMonth=key;
+  document.getElementById('home').classList.add('hidden');
+  document.getElementById('monthPage').classList.remove('hidden');
+  renderMonth();
+}
+function renderMonth(){
+  document.getElementById('monthTitle').textContent=monthLabel(selectedMonth);
+  const tx=state.transactions.filter(t=>t.month===selectedMonth);
+  const income=tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense=tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  document.getElementById('sumIncome').textContent=money(income);
+  document.getElementById('sumExpense').textContent=money(expense);
+  document.getElementById('sumBalance').textContent=money(income-expense);
+  const groups=document.getElementById('groups');
+  if(!state.groups.length){groups.innerHTML='<div class="empty">Crie seu primeiro grupo.</div>';return}
+  groups.innerHTML=state.groups.map(g=>{
+    const items=tx.filter(t=>t.groupId===g.id);
+    const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
+    return `<div class="card">
+      <div class="group-head"><div class="group-name">${esc(g.name)}</div><button class="mini" onclick="deleteGroup('${g.id}')">Excluir</button></div>
+      <div class="group-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
+      ${items.length?items.map(t=>`<div class="tx">
+        <div><strong>${esc(t.description)}</strong><small>${t.type==='expense'?'Gasto':'Receita'} · ${formatDate(t.date)}${t.installmentInfo?` · ${t.installmentInfo}`:''}${t.recurring?' · Recorrente':''}</small></div>
+        <div style="text-align:right"><strong class="${t.type==='expense'?'expense':'income'}">${t.type==='expense'?'-':'+'}${money(t.amount)}</strong><div class="tx-actions"><button class="mini" onclick="editTx('${t.id}')">Editar</button><button class="mini" onclick="deleteTx('${t.id}')">Excluir</button></div></div>
+      </div>`).join(''):'<div class="notice">Nenhuma transação neste grupo.</div>'}
+    </div>`
+  }).join('');
+}
+function formatDate(s){return new Date(s+'T12:00:00').toLocaleDateString('pt-BR')}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+
+function openTxModal(id=null){
+  const m=document.getElementById('modal');m.classList.remove('hidden');
+  document.getElementById('modalTitle').textContent=id?'Editar transação':'Nova transação';
+  document.getElementById('txForm').reset();
+  document.getElementById('editId').value=id||'';
+  document.getElementById('date').value=dateInput(selectedMonth);
+  populateGroups();
+  setType('expense');
+  if(id){
+    const t=state.transactions.find(x=>x.id===id); if(!t)return;
+    document.getElementById('description').value=t.description;
+    document.getElementById('amount').value=t.amount;
+    document.getElementById('group').value=t.groupId;
+    document.getElementById('date').value=t.date;
+    setType(t.type);
+    document.getElementById('recurring').checked=!!t.recurring;
+    document.getElementById('installment').checked=!!t.installmentInfo;
+    if(t.installmentInfo){
+      const n=t.installmentTotal||2;
+      document.getElementById('installments').value=n;
+    }else{
+      document.getElementById('installments').value=2;
+    }
+    toggleOptions();
+  }
+}
+function closeTx(){document.getElementById('modal').classList.add('hidden')}
+function populateGroups(){
+  document.getElementById('group').innerHTML=state.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
+}
+function setType(type){
+  document.getElementById('txType').value=type;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
+  document.getElementById('expenseOptions').classList.toggle('hidden',type!=='expense');
+  if(type!=='expense')document.getElementById('installment').checked=false;
+  toggleOptions();
+}
+function toggleOptions(){
+  document.getElementById('installmentBox').classList.toggle('hidden',!document.getElementById('installment').checked);
+  document.getElementById('recurringBox').classList.toggle('hidden',!document.getElementById('recurring').checked);
+}
+function createTransaction(formData){
+  const {description,amount,groupId,date,type,installments,recurring,duration}=formData;
+  const baseMonth=date.slice(0,7);
+  const parentId=uid();
+  const list=[];
+  const count=installments>1?installments:1;
+  for(let i=0;i<count;i++){
+    if(recurring && duration!=='forever' && i>=Number(duration))break;
+    const month=addMonths(baseMonth,i);
+    const d=new Date(date+'T12:00:00');d.setMonth(d.getMonth()+i);
+    list.push({
+      id:i===0?parentId:uid(), parentId, type, description, amount,
+      groupId,date:d.toISOString().slice(0,10),month,
+      installmentInfo:count>1?`${i+1}/${count}`:null,
+      installmentNumber:count>1?i+1:null, installmentTotal:count>1?count:null,
+      recurring:!!recurring, recurringParent:recurring?parentId:null
+    });
+  }
+  // Recorrente sem limite: materializa os próximos 60 meses para permitir visualização.
+  if(recurring && duration==='forever'){
+    for(let i=count;i<60;i++){
+      const month=addMonths(baseMonth,i);
+      const d=new Date(date+'T12:00:00');d.setMonth(d.getMonth()+i);
+      list.push({id:uid(),parentId,type,description,amount,groupId,date:d.toISOString().slice(0,10),month,installmentInfo:null,recurring:true,recurringParent:parentId});
+    }
+  }
+  return list;
+}
+document.getElementById('txForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const edit=document.getElementById('editId').value;
+  const data={
+    description:document.getElementById('description').value.trim(),
+    amount:Number(document.getElementById('amount').value),
+    groupId:document.getElementById('group').value,
+    date:document.getElementById('date').value,
+    type:document.getElementById('txType').value,
+    installments:document.getElementById('installment').checked
+      ? Number(document.getElementById('installments').value||2)
+      : 1,
+    recurring:document.getElementById('recurring').checked,
+    duration:document.getElementById('recurringDuration').value
+  };
+  if(!data.description||!data.amount||!data.date)return;
+  if(edit){
+    const current=state.transactions.find(t=>t.id===edit);
+    if(current){
+      // Edição de uma parcela/recorrência altera a série inteira.
+      const parentId=current.parentId||current.id;
+      const series=state.transactions.filter(t=>(t.parentId||t.id)===parentId);
+      const first=series.slice().sort((a,b)=>a.date.localeCompare(b.date))[0];
+
+      // Mantém a data inicial original da série para não deslocar
+      // todas as parcelas quando o usuário editar uma parcela posterior.
+      data.date=first ? first.date : data.date;
+
+      // Remove todas as ocorrências antigas e recria a série com as
+      // novas configurações (ex.: de 4x para 2x).
+      state.transactions=state.transactions.filter(t=>(t.parentId||t.id)!==parentId);
+      state.transactions.push(...createTransaction(data));
+    }
+  }else{
+    state.transactions.push(...createTransaction(data));
+  }
+  save();closeTx();openMonth(selectedMonth);
+});
+function editTx(id){openTxModal(id)}
+function deleteTx(id){
+  const t=state.transactions.find(x=>x.id===id);if(!t)return;
+  if(confirm('Excluir esta transação? Se ela fizer parte de parcelas ou recorrência, todas as ocorrências vinculadas também serão excluídas.')){
+    const parent=t.parentId||t.id;
+    state.transactions=state.transactions.filter(x=>(x.parentId||x.id)!==parent);
+    save();renderMonth();
+  }
+}
+function deleteGroup(id){
+  if(state.transactions.some(t=>t.groupId===id)){alert('Este grupo possui transações. Exclua ou mova as transações antes de excluir o grupo.');return}
+  if(confirm('Excluir este grupo?')){state.groups=state.groups.filter(g=>g.id!==id);save();renderMonth();renderGroupList()}
+}
+function renderGroupList(){
+  document.getElementById('groupList').innerHTML=state.groups.map(g=>`<div class="tx"><strong>${esc(g.name)}</strong><button class="mini" onclick="deleteGroup('${g.id}')">Excluir</button></div>`).join('');
+}
+document.getElementById('groupForm').addEventListener('submit',e=>{
+  e.preventDefault();const n=document.getElementById('newGroup').value.trim();if(!n)return;
+  state.groups.push({id:uid(),name:n});save();e.target.reset();populateGroups();renderGroupList();renderMonth();
+});
+document.getElementById('manageGroups').onclick=()=>{renderGroupList();document.getElementById('groupModal').classList.remove('hidden')};
+document.getElementById('closeGroups').onclick=()=>document.getElementById('groupModal').classList.add('hidden');
+document.getElementById('prevMonth').onclick=()=>openMonth(addMonths(selectedMonth,-1));
+document.getElementById('nextMonth').onclick=()=>openMonth(addMonths(selectedMonth,1));
+document.getElementById('addTransaction').onclick=()=>openTxModal();
+document.getElementById('closeModal').onclick=closeTx;
+document.getElementById('cancelModal').onclick=closeTx;
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setType(b.dataset.type));
+document.getElementById('installment').onchange=toggleOptions;
+document.getElementById('recurring').onchange=toggleOptions;
+openMonth(selectedMonth);
+</script>
+</body>
+</html>
