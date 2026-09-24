@@ -444,17 +444,17 @@ function renderMonth(){
   groups.innerHTML=used.map((g)=>{
     const items=tx.filter(t=>t.groupId===g.id).sort((a,b)=>b.date.localeCompare(a.date));
     const total=items.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
-    return `<div class="group-card" id="g-card-${g.id}">
+    return `<div class="group-card is-collapsed" id="g-card-${g.id}">
       <div class="group-head" onclick="toggleGroupCollapse('${g.id}', event)">
         <div class="group-title-box">
           <div class="group-name">${esc(g.name)}</div>
         </div>
         <div class="group-right-box">
           <div class="group-collapsed-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
-          <span class="group-toggle" id="g-toggle-${g.id}">▼</span>
+          <span class="group-toggle collapsed" id="g-toggle-${g.id}">▼</span>
         </div>
       </div>
-      <div class="group-body" id="g-body-${g.id}">
+      <div class="group-body collapsed" id="g-body-${g.id}">
         <div class="group-total ${total<0?'expense':total>0?'income':''}">${money(total)}</div>
         ${items.map(t=>`<div class="tx-row">
           <div class="tx-info"><strong>${esc(t.description)}</strong><small>${t.type==='expense'?'Gasto':'Receita'} · ${formatDate(t.date)}${t.installmentInfo?` · ${t.installmentInfo}`:''}${t.recurring?' · Recorrente':''}</small></div>
