@@ -200,26 +200,30 @@ body::before{
   .brand-name{font-size:17px;white-space:nowrap}
   .tools{justify-content:space-between}
 }
+
+/* tela de login enquanto o Firebase confirma se já existe sessão */
+#loginScreen.checking .login-card{visibility:hidden}
+.btn-login:disabled{opacity:.65}
 </style>
 </head>
 <body>
 
-<div id="loginScreen">
+<div id="loginScreen" class="checking">
   <div class="login-card">
     <div class="login-icon">💰</div>
     <h1 class="login-title">Despesas <span>Fagner e Ana</span></h1>
     <p class="login-subtitle">Gestão simples e rápida no seu celular</p>
     <div class="mobile-form">
       <div class="mobile-field">
-        <label>Usuário</label>
-        <input type="text" id="loginUser" placeholder="Digite seu usuário" value="fagner" autocomplete="off">
+        <label>E-mail</label>
+        <input type="email" id="loginUser" placeholder="Digite seu e-mail" autocomplete="username" autocapitalize="none" autocorrect="off">
       </div>
       <div class="mobile-field">
         <label>Senha</label>
-        <input type="password" id="loginPass" placeholder="Digite sua senha" onkeypress="if(event.key==='Enter')handleLogin()">
+        <input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password" onkeypress="if(event.key==='Enter')handleLogin()">
       </div>
       <div class="login-error" id="loginError"></div>
-      <button class="btn-login" onclick="handleLogin()">Acessar painel</button>
+      <button class="btn-login" id="loginBtn" onclick="handleLogin()">Acessar painel</button>
     </div>
   </div>
 </div>
@@ -343,6 +347,7 @@ body::before{
 
 <!-- SCRIPTS DO FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
 <script>
@@ -355,6 +360,7 @@ const firebaseConfig = {
   appId: "1:452691826801:web:ee7893554e15c4e526a3d0"
 };
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const dbFirestore = firebase.firestore();
 
 const KEY_AUTH='meu_financeiro_auth_v1';
@@ -390,25 +396,35 @@ function askConfirm(title,msg,onYes){
 function closeConfirm(){document.getElementById('confirmModal').classList.add('hidden');confirmCb=null}
 document.getElementById('confirmYesBtn').onclick=()=>{if(confirmCb)confirmCb();closeConfirm()};
 
-/* ===== AUTENTICAÇÃO ===== */
-function checkAuth(){
-  const isAuth=localStorage.getItem(KEY_AUTH);
-  document.getElementById('loginScreen').style.display=isAuth==='true'?'none':'flex';
-}
-function handleLogin(){
-  const pass=document.getElementById('loginPass').value.trim();
-  const err=document.getElementById('loginError');
-  if(pass==='hitu0747'){
-    localStorage.setItem(KEY_AUTH,'true');
-    document.getElementById('loginScreen').style.display='none';
-    err.textContent='';
-    renderMonth();
-  } else {
-    err.textContent='Senha incorreta. Tente novamente.';
-    document.getElementById('loginPass').value='';
+/* ===== AUTENTICAÇÃO (Firebase Auth) ===== */
+function authErrorMsg(code){
+  switch(code){
+    case 'auth/invalid-email': return 'E-mail inválido.';
+    case 'auth/user-disabled': return 'Este usuário foi desativado.';
+    case 'auth/too-many-requests': return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+    case 'auth/network-request-failed': return 'Sem conexão com a internet.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found': return 'E-mail ou senha incorretos.';
+    default: return 'Não foi possível entrar. Tente novamente.';
   }
 }
-function handleLogout(){localStorage.removeItem(KEY_AUTH);checkAuth()}
+async function handleLogin(){
+  const email=document.getElementById('loginUser').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+  if(!email||!pass){err.textContent='Informe e-mail e senha.';return}
+  btn.disabled=true;btn.textContent='Entrando...';err.textContent='';
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+  }catch(e){
+    err.textContent=authErrorMsg(e.code);
+  }
+  document.getElementById('loginPass').value='';
+  btn.disabled=false;btn.textContent='Acessar painel';
+}
+function handleLogout(){auth.signOut()}
 
 /* ===== ESTADO ===== */
 let state=JSON.parse(localStorage.getItem(KEY_DATA)||'null')||{
@@ -421,20 +437,48 @@ let state=JSON.parse(localStorage.getItem(KEY_DATA)||'null')||{
 let selectedMonth=ym(now);
 let parsedCSVRows=[];
 
-dbFirestore.collection('financeiro').doc('dados_gerais').onSnapshot((doc)=>{
-  if(doc.exists){
-    const data=doc.data()||{};
-    state.groups=data.groups||state.groups;
-    state.transactions=data.transactions||[];
-    localStorage.setItem(KEY_DATA,JSON.stringify(state));
-  } else { save(); }
-  if(localStorage.getItem(KEY_AUTH)==='true') renderMonth();
-},(error)=>{console.error('Erro na sincronização Firebase:',error)});
+let unsubscribeSync=null;
+function startSync(){
+  if(unsubscribeSync) return;
+  unsubscribeSync=dbFirestore.collection('financeiro').doc('dados_gerais').onSnapshot((doc)=>{
+    if(doc.exists){
+      const data=doc.data()||{};
+      state.groups=data.groups||state.groups;
+      state.transactions=data.transactions||[];
+      localStorage.setItem(KEY_DATA,JSON.stringify(state));
+    } else { save(); }
+    renderMonth();
+  },(error)=>{
+    console.error('Erro na sincronização Firebase:',error);
+    if(error.code==='permission-denied') toast('Sem permissão para acessar os dados.','err');
+  });
+}
+function stopSync(){if(unsubscribeSync){unsubscribeSync();unsubscribeSync=null}}
 
 function save(){
   localStorage.setItem(KEY_DATA,JSON.stringify(state));
-  dbFirestore.collection('financeiro').doc('dados_gerais').set({groups:state.groups,transactions:state.transactions});
+  if(!auth.currentUser) return;
+  dbFirestore.collection('financeiro').doc('dados_gerais').set({groups:state.groups,transactions:state.transactions})
+    .catch(err=>{console.error(err);toast('Não foi possível salvar na nuvem','err')});
 }
+
+/* reage ao login/logout */
+auth.onAuthStateChanged(user=>{
+  const login=document.getElementById('loginScreen');
+  login.classList.remove('checking');
+  if(user){
+    login.style.display='none';
+    document.getElementById('loginError').textContent='';
+    startSync();
+    renderMonth();
+  } else {
+    stopSync();
+    localStorage.removeItem(KEY_DATA);
+    state.transactions=[];
+    document.getElementById('groups').innerHTML='';
+    login.style.display='flex';
+  }
+});
 
 /* ===== BACKUP (exportar/importar) ===== */
 function exportBackup(){
@@ -941,7 +985,7 @@ function confirmCSVImport(){
 
 /* ===== INIT ===== */
 applyTheme();
-checkAuth();
+localStorage.removeItem(KEY_AUTH); // remove o antigo login por senha fixa
 openMonth(selectedMonth);
 </script>
 </body>
