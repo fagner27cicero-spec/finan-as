@@ -606,21 +606,32 @@ function createTransaction(formData){
   const baseMonth=date.slice(0,7);
   const parentId=uid();
   const list=[];
-  const count=installments>1?installments:1;
-  for(let i=0;i<count;i++){
-    if(recurring&&duration!=='forever'&&i>=Number(duration))break;
+  const isInstallment=installments>1;
+
+  // quantas ocorrências criar
+  let total=1;
+  if(isInstallment) total=installments;
+  else if(recurring) total=duration==='forever'?60:Number(duration);
+
+  const day=Number(date.slice(8,10));
+
+  for(let i=0;i<total;i++){
     const month=addMonths(baseMonth,i);
-    const d=new Date(date+'T12:00:00');d.setMonth(d.getMonth()+i);
-    list.push({id:i===0?parentId:uid(),parentId,type,description,amount,groupId,date:d.toISOString().slice(0,10),month,
-      installmentInfo:count>1?`${i+1}/${count}`:null,installmentNumber:count>1?i+1:null,installmentTotal:count>1?count:null,
-      recurring:!!recurring,recurringParent:recurring?parentId:null});
-  }
-  if(recurring&&duration==='forever'){
-    for(let i=count;i<60;i++){
-      const month=addMonths(baseMonth,i);
-      const d=new Date(date+'T12:00:00');d.setMonth(d.getMonth()+i);
-      list.push({id:uid(),parentId,type,description,amount,groupId,date:d.toISOString().slice(0,10),month,installmentInfo:null,recurring:true,recurringParent:parentId});
-    }
+    // evita estouro de mês (ex.: dia 31 em mês com 30 dias)
+    const[y,m]=month.split('-').map(Number);
+    const lastDay=new Date(y,m,0).getDate();
+    const d=`${month}-${String(Math.min(day,lastDay)).padStart(2,'0')}`;
+
+    list.push({
+      id:i===0?parentId:uid(),
+      parentId,type,description,amount,groupId,
+      date:d,month,
+      installmentInfo:isInstallment?`${i+1}/${total}`:null,
+      installmentNumber:isInstallment?i+1:null,
+      installmentTotal:isInstallment?total:null,
+      recurring:!!recurring,
+      recurringParent:recurring?parentId:null
+    });
   }
   return list;
 }
