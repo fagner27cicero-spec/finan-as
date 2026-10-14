@@ -165,6 +165,41 @@ header.topbar{display:flex;align-items:center;justify-content:space-between;marg
 @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
 
 @media(max-width:580px){.form-grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr}.csv-row-inputs{grid-template-columns:1fr}}
+
+/* ===== AJUSTES MOBILE / iOS ===== */
+html{-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+body{min-height:100dvh}
+button,label{touch-action:manipulation}
+
+/* impede zoom automático ao tocar nos campos */
+input,select{font-size:16px!important}
+
+/* respeita a barra de status e o fundo não "vaza" por baixo dela */
+body::before{
+  content:'';position:fixed;top:0;left:0;right:0;
+  height:env(safe-area-inset-top,0px);
+  background:var(--bg);z-index:90;
+}
+.app{
+  overflow-x:clip; /* garante que nada empurre a página para o lado */
+  padding-top:calc(18px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));
+}
+.fab{bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+#toasts{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+
+/* modais com altura correta no iOS e sem "vazar" a rolagem para o fundo */
+.modal-box{max-height:90dvh;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+
+/* grupos grandes não ficam mais cortados ao expandir */
+.group-body{max-height:20000px}
+
+/* cabeçalho em duas linhas no celular: resolve a rolagem lateral */
+@media(max-width:580px){
+  header.topbar{flex-direction:column;align-items:stretch;gap:12px}
+  .brand-name{font-size:17px;white-space:nowrap}
+  .tools{justify-content:space-between}
+}
 </style>
 </head>
 <body>
@@ -601,6 +636,8 @@ function toggleOptions(){
   document.getElementById('installmentBox').classList.toggle('hidden',!document.getElementById('installment').checked);
   document.getElementById('recurringBox').classList.toggle('hidden',!document.getElementById('recurring').checked);
 }
+
+/* CORRIGIDO: compras recorrentes agora são criadas para os meses futuros */
 function createTransaction(formData){
   const{description,amount,groupId,date,type,installments,recurring,duration}=formData;
   const baseMonth=date.slice(0,7);
@@ -635,6 +672,7 @@ function createTransaction(formData){
   }
   return list;
 }
+
 document.getElementById('txForm').addEventListener('submit',e=>{
   e.preventDefault();
   const edit=document.getElementById('editId').value;
@@ -722,7 +760,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setType(b.dataset.typ
 document.getElementById('installment').onchange=toggleOptions;
 document.getElementById('recurring').onchange=toggleOptions;
 
-/* ===== IMPORTAÇÃO ROBUTA DE FATURA CSV E CRIAÇÃO DAS PARCELAS FUTURAS ===== */
+/* ===== IMPORTAÇÃO ROBUSTA DE FATURA CSV E CRIAÇÃO DAS PARCELAS FUTURAS ===== */
 function processCSVFile(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
